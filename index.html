@@ -15,6 +15,8 @@
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
     "lucide-react": "https://esm.sh/lucide-react@0.383.0?external=react,react-dom",
     "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom"
+    "firebase/app": "https://esm.sh/firebase@10.12.2/app",
+    "firebase/firestore": "https://esm.sh/firebase@10.12.2/firestore"
   }
 }
 </script>
@@ -87,7 +89,32 @@ import {
   Moon, Sun, Printer, PenTool, Sparkles, CheckCircle2, Table2, UploadCloud, Link2, History, Trash, Lock, RefreshCw, CalendarDays, Pencil,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, ResponsiveContainer, LabelList } from "recharts";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 
+const firebaseConfig = {
+  apiKey: "AIzaSyCgd9YzPAwvC2qGkqEHo-PuVlpw9AYtr2M",
+  authDomain: "rackma-engenharia-laudo.firebaseapp.com",
+  projectId: "rackma-engenharia-laudo",
+  storageBucket: "rackma-engenharia-laudo.firebasestorage.app",
+  messagingSenderId: "735480808298",
+  appId: "1:735480808298:web:f0f8c2a6222c0ad9695b13",
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+
+async function salvarLaudoNaNuvem(laudo, elevadores) {
+  if (!laudo.codigo) throw new Error("O laudo precisa de um código antes de salvar na nuvem.");
+  const ref = doc(db, "laudos", laudo.codigo);
+  await setDoc(ref, { laudo, elevadores, atualizadoEm: new Date().toISOString() });
+}
+
+async function carregarLaudoDaNuvem(codigo) {
+  const ref = doc(db, "laudos", codigo);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Nenhum laudo encontrado com esse código na nuvem.");
+  return snap.data();
+}
 // ---------------------------------------------------------------------------
 // Logotipo padrão (RACKMA Engenharia) — pode ser substituído na etapa 1
 // ---------------------------------------------------------------------------
@@ -2237,8 +2264,7 @@ function App() {
             <StepTermo laudo={laudo} setLaudo={setLaudo} showToast={showToast} logHistory={logHistory} />
           )}
           {step === "exportar" && (
-            <StepExportar laudo={laudo} setLaudo={setLaudo} elevadores={elevadores} showToast={showToast} logHistory={logHistory} setStep={setStep} setActiveId={setActiveId} pendingSyncCount={pendingSyncCount} />
-          )}
+<StepExportar laudo={laudo} setLaudo={setLaudo} elevadores={elevadores} setElevadores={setElevadores} showToast={showToast} logHistory={logHistory} setStep={setStep} setActiveId={setActiveId} pendingSyncCount={pendingSyncCount} />          )}
           {step === "historico" && (
             <StepHistorico history={history} clearHistory={clearHistory} />
           )}
@@ -3065,8 +3091,37 @@ function SheetsPanel({ laudo, setLaudo, showToast, pendingSyncCount }) {
   );
 }
 
-function StepExportar({ laudo, setLaudo, elevadores, showToast, logHistory, setStep, setActiveId, pendingSyncCount }) {
+function StepExportar({ laudo, setLaudo, elevadores, setElevadores, showToast, logHistory, setStep, setActiveId, pendingSyncCount }) {
   const [preview, setPreview] = useState(null);
+  const [cloudStatus, setCloudStatus] = useState(null); // null | "saving" | "loading" | "saved" | "error"
+const [cloudCodeInput, setCloudCodeInput] = useState("");
+
+async function handleSalvarNuvem() {
+  setCloudStatus("saving");
+  try {
+    await salvarLaudoNaNuvem(laudo, elevadores);
+    setCloudStatus("saved");
+    showToast?.("Laudo salvo na nuvem (Firebase)");
+  } catch (err) {
+    setCloudStatus("error");
+    showToast?.("Erro ao salvar na nuvem: " + err.message);
+  }
+}
+
+async function handleCarregarNuvem() {
+  if (!cloudCodeInput.trim()) return;
+  setCloudStatus("loading");
+  try {
+    const data = await carregarLaudoDaNuvem(cloudCodeInput.trim());
+    setLaudo(data.laudo);
+    setElevadores(data.elevadores);
+    setCloudStatus("saved");
+    showToast?.("Laudo carregado da nuvem");
+  } catch (err) {
+    setCloudStatus("error");
+    showToast?.("Erro ao carregar: " + err.message);
+  }
+}
   const [sending, setSending] = useState(null);
   const [selected, setSelected] = useState(() => new Set(elevadores.map((e) => e.id)));
   const [adminUnlocked, setAdminUnlocked] = useState(() => {
@@ -3183,7 +3238,24 @@ function StepExportar({ laudo, setLaudo, elevadores, showToast, logHistory, setS
     <div>
       <SectionTitle n={7}>Exportar</SectionTitle>
 
-      {adminUnlocked ? (
+      {<div className="mb-6 rounded-lg border border-slate-200 p-4">
+  <div className="flex items-center gap-2 mb-1">
+    <UploadCloud size={16} className="text-orange-500" />
+    <span className="text-sm font-semibold text-slate-800">Nuvem (Firebase)</span>
+  </div>
+  <p className="text-xs text-slate-500 mb-3">Salva o laudo completo (dados + elevadores) na nuvem, associado ao código do laudo, para continuar em outro computador/celular.</p>
+  <div className="flex flex-wrap gap-2 mb-2">
+    <button onClick={handleSalvarNuvem} disabled={cloudStatus === "saving"} className="text-sm px-3 py-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40">
+      {cloudStatus === "saving" ? "Salvando..." : "Salvar este laudo na nuvem"}
+    </button>
+  </div>
+  <div className="flex flex-col sm:flex-row gap-2">
+    <TextInput value={cloudCodeInput} onChange={(e) => setCloudCodeInput(e.target.value)} placeholder="Código do laudo (ex.: LAU-2026-0001)" className="flex-1" />
+    <button onClick={handleCarregarNuvem} disabled={cloudStatus === "loading"} className="text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-40 whitespace-nowrap">
+      {cloudStatus === "loading" ? "Carregando..." : "Carregar da nuvem"}
+    </button>
+  </div>
+</div> (
         <div className="mb-6">
           <SheetsPanel laudo={laudo} setLaudo={setLaudo} showToast={showToast} pendingSyncCount={pendingSyncCount} />
           <button
