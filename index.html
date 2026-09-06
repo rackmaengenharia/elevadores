@@ -3238,35 +3238,7 @@ async function handleCarregarNuvem() {
     <div>
       <SectionTitle n={7}>Exportar</SectionTitle>
 
-      {<div className="mb-6 rounded-lg border border-slate-200 p-4">
-  <div className="flex items-center gap-2 mb-1">
-    <UploadCloud size={16} className="text-orange-500" />
-    <span className="text-sm font-semibold text-slate-800">Nuvem (Firebase)</span>
-  </div>
-  <p className="text-xs text-slate-500 mb-3">Salva o laudo completo (dados + elevadores) na nuvem, associado ao código do laudo, para continuar em outro computador/celular.</p>
-  <div className="flex flex-wrap gap-2 mb-2">
-    <button onClick={handleSalvarNuvem} disabled={cloudStatus === "saving"} className="text-sm px-3 py-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40">
-      {cloudStatus === "saving" ? "Salvando..." : "Salvar este laudo na nuvem"}
-    </button>
-  </div>
-  <div className="flex flex-col sm:flex-row gap-2">
-    <TextInput value={cloudCodeInput} onChange={(e) => setCloudCodeInput(e.target.value)} placeholder="Código do laudo (ex.: LAU-2026-0001)" className="flex-1" />
-    <button onClick={handleCarregarNuvem} disabled={cloudStatus === "loading"} className="text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-40 whitespace-nowrap">
-      {cloudStatus === "loading" ? "Carregando..." : "Carregar da nuvem"}
-    </button>
-  </div>
-</div> (
-        <div className="mb-6">
-          <SheetsPanel laudo={laudo} setLaudo={setLaudo} showToast={showToast} pendingSyncCount={pendingSyncCount} />
-          <button
-            onClick={() => { try { localStorage.removeItem(ADMIN_UNLOCK_KEY); } catch (e) { /* ignore */ } setAdminUnlocked(false); }}
-            className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1"
-          >
-            <Lock size={11} /> Bloquear área do administrador
-          </button>
-        </div>
-      ) : (
-        {adminUnlocked ? (
+     {adminUnlocked ? (
   <div className="mb-6">
     <SheetsPanel laudo={laudo} setLaudo={setLaudo} showToast={showToast} pendingSyncCount={pendingSyncCount} />
 
@@ -3299,7 +3271,6 @@ async function handleCarregarNuvem() {
 ) : (
   <AdminGate onUnlock={() => setAdminUnlocked(true)} />
 )}
-
       {missing.length > 0 && (
         <div className="mb-5 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-slate-400" />
