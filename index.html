@@ -668,9 +668,9 @@ function statBox(label, value, color) {
 
 function ncCard(nc, index) {
   const r = RISK[nc.grauRisco];
-    const photos = (nc.fotos || []).map((f, i) => `
+      const photos = (nc.fotos || []).map((f, i) => `
     <td style="padding:0 10px 10px 0; text-align:center; vertical-align:top;">
-      <img src="${f}" style="width:5cm;height:7cm;object-fit:cover;border:1px solid ${LINE};display:inline-block;"/>
+      <img src="${f}" width="227" height="170" style="width:6cm;height:4.5cm;border:1px solid ${LINE};display:inline-block;"/>
       <div style="font-size:8pt;color:#8A94A0;text-align:center;margin-top:3px;">Foto ${i + 1}</div>
     </td>`).join("");
   return `
