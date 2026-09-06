@@ -668,9 +668,9 @@ function statBox(label, value, color) {
 
 function ncCard(nc, index) {
   const r = RISK[nc.grauRisco];
-  const photos = (nc.fotos || []).map((f, i) => `
-    <td style="padding:0 10px 8px 0; text-align:center; vertical-align:top;">
-      <img src="${f}" style="width:190px;height:auto;border:1px solid ${LINE};display:inline-block;"/>
+    const photos = (nc.fotos || []).map((f, i) => `
+    <td style="padding:0 10px 10px 0; text-align:center; vertical-align:top;">
+      <img src="${f}" style="width:5cm;height:7cm;object-fit:cover;border:1px solid ${LINE};display:inline-block;"/>
       <div style="font-size:8pt;color:#8A94A0;text-align:center;margin-top:3px;">Foto ${i + 1}</div>
     </td>`).join("");
   return `
@@ -765,7 +765,57 @@ function checklistTableHtml(sec, elevador) {
     ${rows}
   </table>`;
 }
+function buildSectionWithNCsHtml(sec, elevador, ncsBySection, counterState) {
+  const allItems = mergeSectionItems(sec, elevador)
+    .filter((item) => elevador.checklist?.[sec.id]?.[item.id] !== "nao_aplica");
+  if (!allItems.length) return "";
 
+  const ncsForSection = ncsBySection[sec.id] || [];
+  const ncByItemId = {};
+  ncsForSection.forEach((nc) => {
+    if (!ncByItemId[nc.itemId]) ncByItemId[nc.itemId] = [];
+    ncByItemId[nc.itemId].push(nc);
+  });
+
+  let lastSub;
+  const rows = allItems.map((item) => {
+    const status = elevador.checklist?.[sec.id]?.[item.id];
+    const meta = CHECKLIST_STATUS_META[status] || { label: "Não verificado", bg: "#F1F5F9", text: "#94A3B8" };
+    const showSub = item.sub && item.sub !== lastSub;
+    lastSub = item.sub;
+    const subRow = showSub ? `
+      <tr><td colspan="2" style="border:1px solid ${LINE};background:#F1F5F9;padding:4px 8px;font-weight:bold;font-size:8pt;color:${NAVY};">${escapeHtml(item.sub)}</td></tr>` : "";
+
+    const itemRow = `
+      <tr>
+        <td style="border:1px solid ${LINE};padding:6px 8px;font-size:9pt;">${escapeHtml(item.label)}</td>
+        <td style="border:1px solid ${LINE};padding:6px 8px;text-align:center;white-space:nowrap;">
+          <span style="display:inline-block;padding:2px 9px;border-radius:9px;background:${meta.bg};color:${meta.text};font-weight:bold;font-size:8.5pt;">${meta.label}</span>
+        </td>
+      </tr>`;
+
+    const linkedNCs = ncByItemId[item.id] || [];
+    const ncRows = linkedNCs.map((nc) => {
+      counterState.value += 1;
+      return `<tr><td colspan="2" style="border:1px solid ${LINE};padding:10px;background:#FAFBFC;">${ncCard(nc, counterState.value)}</td></tr>`;
+    }).join("");
+
+    const evidence = linkedNCs.length ? "" : evidencePhotosHtml(item, elevador.itemFotos?.[`${sec.id}::${item.id}`] || []);
+    const evidenceRow = evidence ? `<tr><td colspan="2" style="border:1px solid ${LINE};padding:10px;">${evidence}</td></tr>` : "";
+
+    return subRow + itemRow + ncRows + evidenceRow;
+  }).join("");
+
+  return `
+  <div style="font-weight:bold;color:${NAVY};font-size:11.5pt;margin:16px 0 9px 0;border-bottom:1px solid ${LINE};padding-bottom:5px;">${escapeHtml(sec.label)}</div>
+  <table style="border-collapse:collapse;width:100%;margin:6px 0 10px 0;">
+    <tr style="background:${NAVY_SOFT};">
+      <td style="padding:6px 8px;font-weight:bold;font-size:8.5pt;color:${NAVY};">Item verificado</td>
+      <td style="padding:6px 8px;font-weight:bold;font-size:8.5pt;color:${NAVY};text-align:center;width:120px;">Situação</td>
+    </tr>
+    ${rows}
+  </table>`;
+}
 function buildReportHtml(laudo, elevador) {
   const st = overallStatus(elevador);
   const banner = TONE_BANNER[st.tone] || TONE_BANNER.ok;
@@ -778,31 +828,13 @@ function buildReportHtml(laudo, elevador) {
     ncsBySection[key].push(nc);
   });
 
-  let counter = 0;
-  const sectionsHtml = CHECKLIST.map((sec) => {
-    const list = ncsBySection[sec.id] || [];
-    const customForSection = (elevador.customItems || []).filter((ci) => ci.sectionId === sec.id);
-    const allItems = [...sec.items, ...customForSection];
-    if (!allItems.length) return "";
-    const ncItemIds = new Set(list.map((nc) => nc.itemId));
-    const evidenceHtml = allItems
-      .filter((item) => !ncItemIds.has(item.id))
-      .map((item) => evidencePhotosHtml(item, elevador.itemFotos?.[`${sec.id}::${item.id}`] || []))
-      .join("");
-    const checklistTable = checklistTableHtml(sec, elevador);
-    const cards = list.map((nc) => { counter += 1; return ncCard(nc, counter); }).join("");
-    if (!checklistTable && !cards && !evidenceHtml) return "";
-    return `
-      <div style="font-weight:bold;color:${NAVY};font-size:11.5pt;margin:16px 0 9px 0;border-bottom:1px solid ${LINE};padding-bottom:5px;">${escapeHtml(sec.label)}</div>
-      ${checklistTable}
-      ${cards}
-      ${evidenceHtml}`;
-  }).join("");
+    const counterState = { value: 0 };
+  const sectionsHtml = CHECKLIST.map((sec) => buildSectionWithNCsHtml(sec, elevador, ncsBySection, counterState)).join("");
 
   const avulsas = ncsBySection["avulsas"] || [];
   const avulsasHtml = avulsas.length ? `
       <div style="font-weight:bold;color:${NAVY};font-size:11.5pt;margin:16px 0 9px 0;border-bottom:1px solid ${LINE};padding-bottom:5px;">Outras observações</div>
-      ${avulsas.map((nc) => { counter += 1; return ncCard(nc, counter); }).join("")}` : "";
+      ${avulsas.map((nc) => { counterState.value += 1; return ncCard(nc, counterState.value); }).join("")}` : "";
 
   const totalNC = elevador.naoConformidades.length;
   const countAlto = elevador.naoConformidades.filter((n) => n.grauRisco === "alto").length;
